@@ -58,6 +58,9 @@ pub struct NN
 
 impl NN
 {
+	/// Creates a new neural net with the given parameters. Initially there is one hidden layer
+	/// Be careful with Sigmoid as hidden layer activation function, as sigmoid(0) != 0, which could
+	/// possibly cause the algorithm to drop neural nets with an added layer, because it does not represent the identity
     pub fn new(inputs:u32, hidden_size:u32, outputs:u32, hidden_activation:Activation, output_activation:Activation) -> NN
 	{
         let mut rng = rand::thread_rng();
@@ -334,7 +337,7 @@ impl NN
 		self.generation += 1;
 	}
 	
-	/// adds an additional residual block somewhere, representing the identity function
+	/// adds an additional residual block somewhere, representing the identity function (unless sigmoid)
 	fn mutate_block(&mut self)
 	{
 		let mut rng = rand::thread_rng();
