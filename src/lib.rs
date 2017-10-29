@@ -129,13 +129,13 @@ impl NN
         self.do_run(inputs).pop().unwrap()
     }
 	
-    /// Encodes the network as a JSON string.
+	/// Encodes the network as a JSON string.
     pub fn to_json(&self) -> String
 	{
         serde_json::to_string(self).ok().expect("encoding JSON failed!")
     }
 
-    /// Builds a new network from a JSON string.
+	/// Builds a new network from a JSON string.
     pub fn from_json(encoded: &str) -> NN
 	{
         let network: NN = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
@@ -306,51 +306,35 @@ impl NN
 	// ideas to add:
 	// 			change activation function or at least activation function parameters,
 	//			still use backprop for something to speed up calculation
-    pub fn mutate(&mut self, prob_op:f64, op_range:f64, prob_block:f64, prob_new:f64)
+	//			zero out some nodes or blocks or remove things
+	pub fn mutate(&mut self, prob_op:f64, op_range:f64, prob_block:f64, prob_new:f64)
 	{
 		let mut rng = rand::thread_rng();
+		self.increment_generation();
+		//random residual block addition
+		if rng.gen::<f64>() < prob_block
+		{
+			self.mutate_block();
+		}
+		//fresh random network parameters
 		if rng.gen::<f64>() < prob_new
-		{ //fresh network parameters
+		{
 			self.generation /= 2; //as the blocks stay the same, don't set to 0, but decrease significantly
-			let mut init_std_scale = 2.0; //He init
-			if self.hid_act == 1 { init_std_scale = 1.0; } //MSRA / Xavier init
-			let mut prev_layer_size = self.num_inputs as usize;
-			for layer_index in 0..self.layers.len()
-			{
-				let mut layer = &mut self.layers[layer_index];
-				let normal = Normal::new(0.0, (init_std_scale / prev_layer_size as f64).sqrt());
-				for node_index in 0..layer.len()
-				{
-					let mut node = &mut layer[node_index];
-					for weight_index in 0..node.len()
-					{
-						node[weight_index] = if weight_index == 0 { 0.0 } else { normal.ind_sample(&mut rng) };
-					}
-				}
-				prev_layer_size = layer.len();
-			}
+			self.mutate_new();
 		}
-		else
-		{ //mutation
-			self.increment_generation();
-			//random residual block addition
-			if rng.gen::<f64>() < prob_block
-			{
-				self.mutate_block();
-			}
-			//random addition / substraction op
-			if prob_op != 0.0 && op_range != 0.0
-			{
-				self.mutate_op(prob_op, op_range);
-			}
+		//random addition / substraction op mutation
+		if prob_op != 0.0 && op_range != 0.0
+		{
+			self.mutate_op(prob_op, op_range);
 		}
-    }
+	}
 	
 	fn increment_generation(&mut self)
 	{
 		self.generation += 1;
 	}
 	
+	/// adds an additional residual block somewhere, representing the identity function
 	fn mutate_block(&mut self)
 	{
 		let mut rng = rand::thread_rng();
@@ -374,6 +358,29 @@ impl NN
 		self.blocks += 1;
 	}
 	
+	fn mutate_new(&mut self)
+	{
+		let mut rng = rand::thread_rng();
+		let mut init_std_scale = 2.0; //He init
+		if self.hid_act == 1 { init_std_scale = 1.0; } //MSRA / Xavier init
+		let mut prev_layer_size = self.num_inputs as usize;
+		for layer_index in 0..self.layers.len()
+		{
+			let mut layer = &mut self.layers[layer_index];
+			let normal = Normal::new(0.0, (init_std_scale / prev_layer_size as f64).sqrt());
+			for node_index in 0..layer.len()
+			{
+				let mut node = &mut layer[node_index];
+				for weight_index in 0..node.len()
+				{
+					node[weight_index] = if weight_index == 0 { 0.0 } else { normal.ind_sample(&mut rng) };
+				}
+			}
+			prev_layer_size = layer.len();
+		}
+	}
+	
+	/// mutate using addition/substraction of a random value (random per node)
 	fn mutate_op(&mut self, prob_op:f64, op_range:f64)
 	{
 		let mut rng = rand::thread_rng();
