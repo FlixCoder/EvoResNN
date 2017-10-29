@@ -62,14 +62,17 @@ fn main()
 	let mut mse = -opt.optimize(1, survival+badsurv, survival, badsurv, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
 	
     // train the network
+	let mut i = 0;
     while mse > 0.01
 	{
 		mse = -opt.optimize(10, population, survival, badsurv, prob_avg, prob_mut, prob_op, op_range, prob_block, prob_new);
 		println!("MSE: {}", mse);
+		i += 10;
 	}
 	
 	let nn = opt.get_nn(); //get the best neural net
 	println!("NN information:");
+	println!("Iterations: {}", i);
 	println!("Generation: {}", nn.get_gen());
 	println!("Added blocks: {}", nn.get_blocks());
 }
