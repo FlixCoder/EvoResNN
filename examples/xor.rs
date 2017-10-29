@@ -55,7 +55,7 @@ fn main()
 	let prob_new = 0.1;
 	
     // create a new neural network, evaluator and optimizer
-    let nn = NN::new(2, 3, 1, Activation::PELU, Activation::Sigmoid);
+    let nn = NN::new(2, 3, 1, Activation::Quadratic, Activation::Sigmoid);
 	let eval = Box::new(XorEval::new());
 	let mut opt = Optimizer::new(eval, nn);
 	//generate initial population

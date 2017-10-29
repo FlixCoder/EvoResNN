@@ -41,6 +41,10 @@ pub enum Activation
 	Linear,
 	/// Tanh activation
 	Tanh,
+	/// Quadratic activation
+	Quadratic,
+	/// Cubic activation
+	Cubic,
 }
 
 /// Neural network
@@ -111,6 +115,8 @@ impl NN
 			Activation::LRELU => 3,
 			Activation::Linear => 4,
 			Activation::Tanh => 5,
+			Activation::Quadratic => 6,
+			Activation::Cubic => 7,
 		};
 		let out_act = match output_activation {
 			Activation::Sigmoid => 0,
@@ -119,6 +125,8 @@ impl NN
 			Activation::LRELU => 3,
 			Activation::Linear => 4,
 			Activation::Tanh => 5,
+			Activation::Quadratic => 6,
+			Activation::Cubic => 7,
 		};
         NN { layers: layers, num_inputs: inputs, hidden_size: hidden_size, hid_act: hid_act, out_act: out_act, blocks: 0, generation: 0 }
     }
@@ -170,7 +178,9 @@ impl NN
 							2 => pelu(sum), //pelu
 							3 => lrelu(sum), //lrelu
 							4 => linear(sum), //linear
-							_ => tanh(sum), //tanh
+							5 => tanh(sum), //tanh
+							6 => quad(sum), //quadratic
+							_ => cubic(sum), //cubic
 						}
 					}
 					else
@@ -181,7 +191,9 @@ impl NN
 							2 => pelu(sum), //pelu
 							3 => lrelu(sum), //lrelu
 							4 => linear(sum), //linear
-							_ => tanh(sum), //tanh
+							5 => tanh(sum), //tanh
+							6 => quad(sum), //quadratic
+							_ => cubic(sum), //cubic
 						}
 					} );
             }
@@ -407,55 +419,65 @@ impl NN
 	}
 }
 	
-fn sigmoid(y: f64) -> f64
+fn sigmoid(x:f64) -> f64
 {
-    1f64 / (1f64 + (-y).exp())
+    1f64 / (1f64 + (-x).exp())
 }
 
-fn selu(y: f64) -> f64
+fn selu(x:f64) -> f64
 { //SELU activation
-	SELU_FACTOR_A * if y < 0.0
+	SELU_FACTOR_A * if x < 0.0
 	{
-		SELU_FACTOR_B * y.exp() - SELU_FACTOR_B
+		SELU_FACTOR_B * x.exp() - SELU_FACTOR_B
 	}
 	else
 	{
-		y
+		x
 	}
 }
 
-fn pelu(y: f64) -> f64
+fn pelu(x:f64) -> f64
 { //PELU activation
-	if y < 0.0
+	if x < 0.0
 	{
-		PELU_FACTOR_A * (y / PELU_FACTOR_B).exp() - PELU_FACTOR_A
+		PELU_FACTOR_A * (x / PELU_FACTOR_B).exp() - PELU_FACTOR_A
 	}
 	else
 	{
-		(PELU_FACTOR_A / PELU_FACTOR_B) * y
+		(PELU_FACTOR_A / PELU_FACTOR_B) * x
 	}
 }
 
-fn lrelu(y: f64) -> f64
+fn lrelu(x:f64) -> f64
 { //LRELU activation
-	if y < 0.0
+	if x < 0.0
 	{
-		LRELU_FACTOR * y
+		LRELU_FACTOR * x
 	}
 	else
 	{
-		y
+		x
 	}
 }
 
-fn linear(y: f64) -> f64
+fn linear(x:f64) -> f64
 { //linear activation
-	y
+	x
 }
 
-fn tanh(y: f64) -> f64
+fn tanh(x:f64) -> f64
 { //tanh activation
-	y.tanh()
+	x.tanh()
+}
+
+fn quad(x:f64) -> f64
+{
+	x * x
+}
+
+fn cubic(x:f64) -> f64
+{
+	x * x * x
 }
 
 fn modified_dotprod(node: &Vec<f64>, values: &Vec<f64>) -> f64
