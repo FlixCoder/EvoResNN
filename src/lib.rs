@@ -26,7 +26,7 @@ const LRELU_FACTOR:f64 = 0.33;
 
 
 /// Specifies the activation function
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Deserialize, Serialize)]
 pub enum Activation
 {
 	/// Sigmoid activation
@@ -55,8 +55,9 @@ pub struct NN
 	blocks: u32, //number of residual layer blocks
 	num_inputs: u32, //number of inputs to NN
 	hidden_size: u32, //size of every hidden layer. always 2 layers in a block. at least 1 hidden layer
-	hid_act: u32, //hidden layer activation
-	out_act: u32, //output layer activation
+	num_outputs: u32, //number of outputs of the NN
+	hid_act: Activation, //hidden layer activation
+	out_act: Activation, //output layer activation
 	layers: Vec<Vec<Vec<f64>>>, //NN layers -> nodes -> weights
 }
 
@@ -108,27 +109,8 @@ impl NN
         layers.shrink_to_fit();
 		
 		//set activation functions
-		let hid_act = match hidden_activation {
-			Activation::Sigmoid => 0,
-			Activation::SELU => 1,
-			Activation::PELU => 2,
-			Activation::LRELU => 3,
-			Activation::Linear => 4,
-			Activation::Tanh => 5,
-			Activation::Quadratic => 6,
-			Activation::Cubic => 7,
-		};
-		let out_act = match output_activation {
-			Activation::Sigmoid => 0,
-			Activation::SELU => 1,
-			Activation::PELU => 2,
-			Activation::LRELU => 3,
-			Activation::Linear => 4,
-			Activation::Tanh => 5,
-			Activation::Quadratic => 6,
-			Activation::Cubic => 7,
-		};
-        NN { layers: layers, num_inputs: inputs, hidden_size: hidden_size, hid_act: hid_act, out_act: out_act, blocks: 0, generation: 0 }
+        NN { generation: 0, blocks: 0, num_inputs: inputs, hidden_size: hidden_size, num_outputs: outputs,
+				hid_act: hidden_activation, out_act: output_activation, layers: layers }
     }
 	
     pub fn run(&self, inputs: &[f64]) -> Vec<f64>
@@ -170,32 +152,20 @@ impl NN
 					sum += results[layer_index - 1][i];
 				}
 				//standard forward pass activation
-				layer_results.push( if layer_index == self.layers.len()-1 //output layer
-					{
-						match self.out_act {
-							0 => sigmoid(sum), //sigmoid
-							1 => selu(sum), //selu
-							2 => pelu(sum), //pelu
-							3 => lrelu(sum), //lrelu
-							4 => linear(sum), //linear
-							5 => tanh(sum), //tanh
-							6 => quad(sum), //quadratic
-							_ => cubic(sum), //cubic
-						}
-					}
-					else
-					{
-						match self.hid_act {
-							0 => sigmoid(sum), //sigmoid
-							1 => selu(sum), //selu
-							2 => pelu(sum), //pelu
-							3 => lrelu(sum), //lrelu
-							4 => linear(sum), //linear
-							5 => tanh(sum), //tanh
-							6 => quad(sum), //quadratic
-							_ => cubic(sum), //cubic
-						}
-					} );
+				let act;
+				if layer_index == self.layers.len()-1 //output layer
+				{ act = self.out_act; }
+				else { act = self.hid_act; }
+				layer_results.push( match act {
+							Activation::Sigmoid => sigmoid(sum),
+							Activation::SELU => selu(sum),
+							Activation::PELU => pelu(sum),
+							Activation::LRELU => lrelu(sum),
+							Activation::Linear => linear(sum),
+							Activation::Tanh => tanh(sum),
+							Activation::Quadratic => quad(sum),
+							Activation::Cubic => cubic(sum),
+						} );
             }
             results.push(layer_results);
         }
@@ -212,22 +182,37 @@ impl NN
 		&self.layers
 	}
 	
-	fn get_hid_act(&self) -> u32
+	pub fn get_inputs(&self) -> u32
+	{
+		self.num_inputs
+	}
+	
+	pub fn get_hidden(&self) -> u32
+	{
+		self.hidden_size
+	}
+	
+	pub fn get_outputs(&self) -> u32
+	{
+		self.num_outputs
+	}
+	
+	pub fn get_hid_act(&self) -> Activation
 	{
 		self.hid_act
 	}
 	
-	fn get_out_act(&self) -> u32
+	fn get_out_act(&self) -> Activation
 	{
 		self.out_act
 	}
 	
-	fn set_hid_act(&mut self, act:u32)
+	fn set_hid_act(&mut self, act:Activation)
 	{
 		self.hid_act = act;
 	}
 	
-	fn set_out_act(&mut self, act:u32)
+	fn set_out_act(&mut self, act:Activation)
 	{
 		self.out_act = act;
 	}
@@ -377,7 +362,7 @@ impl NN
 	{
 		let mut rng = rand::thread_rng();
 		let mut init_std_scale = 2.0; //He init
-		if self.hid_act == 1 { init_std_scale = 1.0; } //MSRA / Xavier init
+		if self.hid_act == Activation::SELU { init_std_scale = 1.0; } //MSRA / Xavier init
 		let mut prev_layer_size = self.num_inputs as usize;
 		for layer_index in 0..self.layers.len()
 		{
