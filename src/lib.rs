@@ -256,7 +256,7 @@ impl NN
 		
 		//set generation
 		let oldgen = newnn.get_gen();
-		newnn.set_gen((other.get_gen() + oldgen + 3) / 2); //round up and + 1
+		newnn.set_gen((other.get_gen() + oldgen) / 2 + 1);
 		
 		//set activation functions
 		if rng.gen::<f64>() < 0.5
