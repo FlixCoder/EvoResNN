@@ -524,6 +524,26 @@ impl Optimizer
 		self.eval.as_mut()
 	}
 	
+	/// clones the best NN an returns it
+	pub fn get_nn(&mut self) -> NN
+	{
+		self.nets[0].0.clone()
+	}
+	
+	/// reevaluates all neural nets based on the current (possibly changed) evaluator
+	pub fn reevaluate(&mut self) -> f64
+	{
+		let mut vec = Vec::new();
+		while !self.nets.is_empty()
+		{
+			let (nn, _) = self.nets.pop().unwrap();
+			vec.push(nn);
+		}
+		self.evaluate(vec);
+		self.sort_nets();
+		self.nets[0].1
+	}
+	
 	/// optimize the NN for the given number of generations
 	/// it is recommended to run a single generation with prob_mut = 1.0 and prob_new = 1.0 at the start to generate the starting population
 	/// returns the rating of the best NN afterwards
@@ -603,12 +623,6 @@ impl Optimizer
 			let i:usize = rng.gen::<usize>() % bad.len();
 			self.nets.push(bad.swap_remove(i));
 		}
-	}
-	
-	/// clones the best NN an returns it
-	pub fn get_nn(&mut self) -> NN
-	{
-		self.nets[0].0.clone()
 	}
 	
 	fn sort_nets(&mut self)
