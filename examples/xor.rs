@@ -47,7 +47,7 @@ fn main()
 	let population = 50;
 	let survival = 8;
 	let badsurv = 2;
-	let prob_avg = 0.5;
+	let prob_avg = 0.1;
 	let prob_mut = 0.9;
 	let prob_op = 0.75;
 	let op_range = 0.9;

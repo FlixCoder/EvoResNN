@@ -282,15 +282,15 @@ impl NN
 					for weight_index in 0..node.len()
 					{
 						let mut layer2val = 0.0;
-						if layer_index < layers2.len() - 1
-						{ //simulate same network size by using zeros for the block
-							layer2val = layers2[layer_index][node_index][weight_index];
-						} //if layers2 is deeper than layers1, the shorter layers1 is taken and deeper layers ignored
-						else if layer_index == layers1len - 1 //last layer
-						{ //use the same layer weights again for the output layer
+						if layer_index == layers1len - 1 //last layer
+						{ //use the same layer weights again for the output layer, also if network 2 is deeper
 							let outlayer_i = layers2.len() - 1;
 							layer2val = layers2[outlayer_i][node_index][weight_index];
 						}
+						else if layer_index < layers2.len() - 1
+						{ //simulate same network size by using zeros for the block (so identity if not sigmoid)
+							layer2val = layers2[layer_index][node_index][weight_index];
+						} //if layers2 is deeper than layers1, the shorter layers1 is taken and deeper layers ignored
 						
 						if prob_avg == 1.0 || (prob_avg != 0.0 && rng.gen::<f64>() < prob_avg)
 						{ //average between weights
