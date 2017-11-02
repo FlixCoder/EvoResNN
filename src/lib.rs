@@ -202,7 +202,7 @@ impl NN
 		self.hid_act
 	}
 	
-	fn get_out_act(&self) -> Activation
+	pub fn get_out_act(&self) -> Activation
 	{
 		self.out_act
 	}
@@ -509,7 +509,7 @@ impl <T:Evaluator> Optimizer <T>
 		self.eval = evaluator;
 	}
 	
-	/// reevaluates all neural nets based on the current (possibly changed) evaluator
+	/// reevaluates all neural nets based on the current (possibly changed) evaluator, returns best score
 	pub fn reevaluate(&mut self) -> f64
 	{
 		let mut vec = Vec::new();
