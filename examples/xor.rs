@@ -26,7 +26,7 @@ impl XorEval
 //implement an evaluator to rate the neural nets results
 impl Evaluator for XorEval
 {
-	fn evaluate(&mut self, nn:&NN) -> f64
+	fn evaluate(&self, nn:&NN) -> f64
 	{ //optimize the mean squared error
 		let mut sum = 0.0;
 		for &(ref inputs, ref outputs) in self.examples.iter()
@@ -56,7 +56,7 @@ fn main()
 	
     // create a new neural network, evaluator and optimizer
     let nn = NN::new(2, 3, 1, Activation::Quadratic, Activation::Sigmoid);
-	let eval = Box::new(XorEval::new());
+	let eval = XorEval::new();
 	let mut opt = Optimizer::new(eval, nn);
 	//generate initial population
 	let mut mse = -opt.optimize(1, survival+badsurv, survival, badsurv, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);

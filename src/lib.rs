@@ -481,32 +481,26 @@ fn modified_dotprod(node: &Vec<f64>, values: &Vec<f64>) -> f64
 /// trait to define evaluators in order to use the algorithm in a flexible way
 pub trait Evaluator
 {
-	fn evaluate(&mut self, nn:&NN) -> f64; //returns rating of NN (higher is better (you can inverse with -))
+	fn evaluate(&self, nn:&NN) -> f64; //returns rating of NN (higher is better (you can inverse with -))
 }
 
 /// Optimizer class to optimize neural nets by evolutionary / genetic algorithms
-pub struct Optimizer
+pub struct Optimizer <T:Evaluator>
 {
-	eval: Box<Evaluator>, //evaluator
+	eval: T, //evaluator
 	nets: Vec<(NN, f64)>, //population of nets and ratings (sorted, high/best rating in front)
 }
 
-impl Optimizer
+impl <T:Evaluator> Optimizer <T>
 {
 	/// create a new optimizer using the given evaluator for the given neural net
-	pub fn new(mut evaluator:Box<Evaluator>, nn:NN) -> Optimizer
+	pub fn new(evaluator:T, nn:NN) -> Optimizer<T>
 	{
 		let mut netvec = Vec::new();
-		let rating = evaluator.as_mut().evaluate(&nn);
+		let rating = evaluator.evaluate(&nn);
 		netvec.push((nn, rating));
 		
 		Optimizer { eval: evaluator, nets: netvec }
-	}
-	
-	/// returns a mutable borrow of the evaluator to allow adjustments
-	pub fn get_eval(&mut self) -> &mut Evaluator
-	{
-		self.eval.as_mut()
 	}
 	
 	/// clones the best NN an returns it
@@ -590,7 +584,7 @@ impl Optimizer
 	{
 		for nn in nets
 		{
-			let score = self.get_eval().evaluate(&nn);
+			let score = self.eval.evaluate(&nn);
 			self.nets.push((nn, score));
 		}
 	}
