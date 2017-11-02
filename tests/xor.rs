@@ -44,9 +44,9 @@ impl Evaluator for XorEval
 fn xor()
 {
 	//parameters for genetic optimization
-	let population = 50;
-	let survival = 8;
-	let badsurv = 2;
+	let population = 25;
+	let survival = 4;
+	let badsurv = 1;
 	let prob_avg = 0.1;
 	let prob_mut = 0.9;
 	let prob_op = 0.75;
