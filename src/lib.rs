@@ -503,10 +503,10 @@ impl <T:Evaluator> Optimizer <T>
 		Optimizer { eval: evaluator, nets: netvec }
 	}
 	
-	/// clones the best NN an returns it
-	pub fn get_nn(&mut self) -> NN
+	/// switch to a new evaluator to allow change of evaluation. you should probably call reevaluate afterwards
+	pub fn set_eval(&mut self, evaluator:T)
 	{
-		self.nets[0].0.clone()
+		self.eval = evaluator;
 	}
 	
 	/// reevaluates all neural nets based on the current (possibly changed) evaluator
@@ -521,6 +521,12 @@ impl <T:Evaluator> Optimizer <T>
 		self.evaluate(vec);
 		self.sort_nets();
 		self.nets[0].1
+	}
+	
+	/// clones the best NN an returns it
+	pub fn get_nn(&mut self) -> NN
+	{
+		self.nets[0].0.clone()
 	}
 	
 	/// optimize the NN for the given number of generations
