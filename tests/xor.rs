@@ -48,10 +48,10 @@ fn xor()
 	let survival = 4;
 	let badsurv = 1;
 	let prob_avg = 0.1;
-	let prob_mut = 0.9;
-	let prob_op = 0.75;
-	let op_range = 0.9;
-	let prob_block = 0.05;
+	let prob_mut = 0.95;
+	let prob_op = 0.5;
+	let op_range = 0.5;
+	let prob_block = 0.1;
 	let prob_new = 0.1;
 	
 	// create examples of the xor function
@@ -63,7 +63,7 @@ fn xor()
 	];
 	
     // create a new neural network, evaluator and optimizer
-    let nn = NN::new(2, 3, 1, Activation::PELU, Activation::Sigmoid);
+    let nn = NN::new(2, 3, 1, Activation::Quadratic, Activation::Sigmoid);
 	let eval = XorEval::new();
 	let mut opt = Optimizer::new(eval, nn);
 	//generate initial population

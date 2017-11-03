@@ -64,8 +64,7 @@ pub struct NN
 impl NN
 {
 	/// Creates a new neural net with the given parameters. Initially there is one hidden layer
-	/// Be careful with Sigmoid as hidden layer activation function, as sigmoid(0) != 0, which could
-	/// possibly cause the algorithm to drop neural nets with an added layer, because it does not represent the identity
+	/// Be careful with Sigmoid as hidden layer activation function, as it could possibly slow down block additions
     pub fn new(inputs:u32, hidden_size:u32, outputs:u32, hidden_activation:Activation, output_activation:Activation) -> NN
 	{
         let mut rng = rand::thread_rng();
@@ -156,7 +155,7 @@ impl NN
 				if layer_index == self.layers.len()-1 //output layer
 				{ act = self.out_act; }
 				else { act = self.hid_act; }
-				layer_results.push( match act {
+				sum = match act {
 							Activation::Sigmoid => sigmoid(sum),
 							Activation::SELU => selu(sum),
 							Activation::PELU => pelu(sum),
@@ -165,7 +164,9 @@ impl NN
 							Activation::Tanh => tanh(sum),
 							Activation::Quadratic => quad(sum),
 							Activation::Cubic => cubic(sum),
-						} );
+						};
+				//push result
+				layer_results.push(sum);
             }
             results.push(layer_results);
         }
@@ -241,7 +242,7 @@ impl NN
 		
 		//set generation
 		let oldgen = newnn.get_gen();
-		newnn.set_gen((other.get_gen() + oldgen) / 2 + 1);
+		newnn.set_gen((other.get_gen() + oldgen + 3) / 2); //round up and + 1
 		
 		//set activation functions
 		if rng.gen::<f64>() < 0.5
@@ -301,7 +302,7 @@ impl NN
 	/// params: (all probabilities in [0,1])
 	/// prob_op:f64 - probability to apply an addition/substraction to a node
 	/// op_range:f64 - maximum positive or negative adjustment of a weight
-	/// prob_block:f64 - probability to add another residual block (2 layers) somewhere in the network, initially identity, random prob_op afterwards
+	/// prob_block:f64 - probability to add another residual block (2 layers) somewhere in the network, initially close to identity if not sigmoid (double activation), random prob_op afterwards
 	/// prob_new:f64 - probability to become a new freshly initialized network of same size/architecture (to change hidden size create one manually and don't breed them)
 	// ideas to add:
 	// 			change activation function or at least activation function parameters,
@@ -310,17 +311,17 @@ impl NN
 	pub fn mutate(&mut self, prob_op:f64, op_range:f64, prob_block:f64, prob_new:f64)
 	{
 		let mut rng = rand::thread_rng();
-		self.increment_generation();
-		//random residual block addition
-		if rng.gen::<f64>() < prob_block
-		{
-			self.mutate_block();
-		}
+		//self.generation += 1;
 		//fresh random network parameters
 		if rng.gen::<f64>() < prob_new
 		{
 			self.generation /= 2; //as the blocks stay the same, don't set to 0, but decrease significantly
 			self.mutate_new();
+		}
+		//random residual block addition
+		if rng.gen::<f64>() < prob_block
+		{
+			self.mutate_block();
 		}
 		//random addition / substraction op mutation
 		if prob_op != 0.0 && op_range != 0.0
@@ -329,12 +330,7 @@ impl NN
 		}
 	}
 	
-	fn increment_generation(&mut self)
-	{
-		self.generation += 1;
-	}
-	
-	/// adds an additional residual block somewhere, representing the identity function (unless sigmoid)
+	/// adds an additional residual block somewhere
 	fn mutate_block(&mut self)
 	{
 		let mut rng = rand::thread_rng();
