@@ -3,6 +3,11 @@ extern crate ernn;
 use ernn::*;
 
 
+//model guide:
+//not very sure, but currently LRELU as hidden-layer activation seems to perform best, especially for adding blocks.
+//for some tasks however other activation functions might perform better.
+//example: for sigmoid as output activation a quadratic hidden activation can lead to faster convergence to 0 and 1 values
+
 //parameter guide:
 //for parameter adjustment information see comment behind parameters
 //in general: preferably try to lower hidden-layer-size if learning is unstable/slow
