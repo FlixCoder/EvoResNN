@@ -9,8 +9,8 @@ extern crate serde_json;
 extern crate rand;
 
 use std::cmp::Ordering;
-use self::rand::Rng;
-use self::rand::distributions::{Normal, IndependentSample};
+use rand::Rng;
+use rand::distributions::{Normal, IndependentSample};
 
 //values for a (0,1) distribution (so (-1, 1) interval in standard deviation)
 //const SELU_FACTOR_A:f64 = 1.0507; //greater than 1, lambda in https://arxiv.org/pdf/1706.02515.pdf
