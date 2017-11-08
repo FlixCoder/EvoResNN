@@ -124,13 +124,13 @@ impl NN
 	/// Encodes the network as a JSON string.
     pub fn to_json(&self) -> String
 	{
-        serde_json::to_string(self).ok().expect("encoding JSON failed!")
+        serde_json::to_string(self).ok().expect("Encoding JSON failed!")
     }
 
 	/// Builds a new network from a JSON string.
     pub fn from_json(encoded: &str) -> NN
 	{
-        let network: NN = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
+        let network:NN = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
         network
     }
 	
@@ -311,11 +311,9 @@ impl NN
 	pub fn mutate(&mut self, prob_op:f64, op_range:f64, prob_block:f64, prob_new:f64)
 	{
 		let mut rng = rand::thread_rng();
-		//self.generation += 1;
 		//fresh random network parameters
 		if rng.gen::<f64>() < prob_new
 		{
-			self.generation /= 2; //as the blocks stay the same, don't set to 0, but decrease significantly
 			self.mutate_new();
 		}
 		//random residual block addition
