@@ -31,7 +31,7 @@ fn xor()
     // train the network
     while mse > 0.01
 	{
-		mse = -opt.optimize_easy(10, population, prob_op, op_range, prob_block);
+		mse = -opt.optimize_easy(10, population, prob_block, prob_op, op_range);
 		println!("MSE: {}", mse);
 	}
 	let nn = opt.get_nn(); //get the best neural net

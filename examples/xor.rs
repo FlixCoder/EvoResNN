@@ -25,10 +25,10 @@ fn main()
 	let badsurv = 1; //probably keep this
 	let prob_avg = 0.1; //probably keep this, does not change very much
 	let prob_mut = 0.95; //probably keep this, not too much change
+	let prob_new = 0.1; //can be adjusted, but do not set to 0.0, does not change too much, but avoids getting stuck
+	let prob_block = 0.02; //can be adjusted, so the network does not adds too many layers or adds more layers (no added blocks probably means prob_op or op_range too high)
 	let prob_op = 0.75; //the bigger the network, the lower this (try op_range first)
 	let op_range = 0.25; //the bigger the network, the lower this (lower this before prob_op)
-	let prob_block = 0.02; //can be adjusted, so the network does not adds too many layers or adds more layers (no added blocks probably means prob_op or op_range too high)
-	let prob_new = 0.1; //can be adjusted, but do not set to 0.0, does not change too much, but avoids getting stuck
 	
     // create a new neural network, evaluator and optimizer
 	let nn = NN::new(2, 3, 1, Activation::LRELU, Activation::Linear);
@@ -41,7 +41,7 @@ fn main()
 	let mut i = 0;
     while mse > 0.01
 	{
-		mse = -opt.optimize(10, population, survival, badsurv, prob_avg, prob_mut, prob_op, op_range, prob_block, prob_new);
+		mse = -opt.optimize(10, population, survival, badsurv, prob_avg, prob_mut, prob_new, prob_block, prob_op, op_range);
 		println!("MSE: {}", mse);
 		i += 10;
 	}

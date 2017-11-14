@@ -300,15 +300,15 @@ impl NN
 	
     /// mutate the current network
 	/// params: (all probabilities in [0,1])
-	/// prob_op:f64 - probability to apply an addition/substraction to a node
-	/// op_range:f64 - maximum positive or negative adjustment of a weight
-	/// prob_block:f64 - probability to add another residual block (2 layers) somewhere in the network, initially close to identity if not sigmoid (double activation), random prob_op afterwards
 	/// prob_new:f64 - probability to become a new freshly initialized network of same size/architecture (to change hidden size create one manually and don't breed them)
+	/// prob_block:f64 - probability to add another residual block (2 layers) somewhere in the network, initially close to identity if not sigmoid (double activation), random prob_op afterwards
+	/// prob_op:f64 - probability to apply an operation to a weight
+	/// op_range:f64 - maximum positive or negative adjustment of a weight
 	// ideas to add:
-	//			zero out some nodes or blocks or remove things
-	// 			change activation function or at least activation function parameters,
+	// 			change activation function or at least activation function parameters
+	//			remove blocks (weight to zero does not work)
 	//			still use backprop for something to speed up calculation
-	pub fn mutate(&mut self, prob_op:f64, op_range:f64, prob_block:f64, prob_new:f64)
+	pub fn mutate(&mut self, prob_new:f64, prob_block:f64, prob_op:f64, op_range:f64)
 	{
 		let mut rng = rand::thread_rng();
 		//fresh random network parameters
@@ -380,21 +380,21 @@ impl NN
 		let mut rng = rand::thread_rng();
 		for layer_index in 0..self.layers.len()
 		{
-            let mut layer = &mut self.layers[layer_index];
-            for node_index in 0..layer.len()
+			let mut layer = &mut self.layers[layer_index];
+			for node_index in 0..layer.len()
 			{
-                let mut node = &mut layer[node_index];
-                for weight_index in 0..node.len()
+				let mut node = &mut layer[node_index];
+				for weight_index in 0..node.len()
 				{
-                    let mut delta = 0.0;
+					//possibly modify weight
 					if rng.gen::<f64>() < prob_op
-					{
-						delta = op_range * (2.0 * rng.gen::<f64>() - 1.0);
+					{ //RNG says this weight will be changed
+						let delta = op_range * (2.0 * rng.gen::<f64>() - 1.0);
+						node[weight_index] += delta;
 					}
-                    node[weight_index] += delta;
-                }
-            }
-        }
+				}
+			}
+		}
 	}
 }
 	
@@ -554,8 +554,7 @@ impl <T:Evaluator> Optimizer <T>
 	}
 	
 	/// optimize the NN for the given number of generations
-	/// it is recommended to run a single generation with prob_mut = 1.0 and prob_new = 1.0 at the start to generate the starting population
-	/// returns the rating of the best NN afterwards
+	/// returns the rating of the best NN score afterwards
 	/// 
 	/// parameters: (probabilities are in [0,1]) (see xor example for help regarding paramter choice)
 	/// generations - number of generations to optimize over
@@ -564,16 +563,17 @@ impl <T:Evaluator> Optimizer <T>
 	/// bad_survival - number of nets to survive randomly from nets, that are not already selected to survive from best rating
 	/// prob_avg - probability to use average weight instead of selection in breeding
 	/// prob_mut - probability to mutate after breed
+	/// prob_new - probability to generate a new random network
+	/// prob_block - probability to add another residual block
 	/// prob_op - probability for each weight to mutate using an delta math operation during mutation
 	/// op_range - factor to control the range in which delta can be in
-	/// prob_block - probability to add another residual block
-	/// prob_new - probability to generate a new random network
-	pub fn optimize(&mut self, generations:u32, population:u32, survival:u32, bad_survival:u32, prob_avg:f64, prob_mut:f64, prob_op:f64, op_range:f64, prob_block:f64, prob_new:f64) -> f64
+	pub fn optimize(&mut self, generations:u32, population:u32, survival:u32, bad_survival:u32, prob_avg:f64, prob_mut:f64,
+					prob_new:f64, prob_block:f64, prob_op:f64, op_range:f64) -> f64
 	{
 		//optimize for generations generations
 		for _ in 0..generations
 		{
-			let children = self.populate(population as usize, prob_avg, prob_mut, prob_op, op_range, prob_block, prob_new);
+			let children = self.populate(population as usize, prob_avg, prob_mut, prob_new, prob_block, prob_op, op_range);
 			self.evaluate(children);
 			self.sort_nets();
 			self.survive(survival, bad_survival);
@@ -586,7 +586,7 @@ impl <T:Evaluator> Optimizer <T>
 	
 	/// easy shortcut to optimize using standard parameters
 	/// for paramters see optimize
-	pub fn optimize_easy(&mut self, generations:u32, population:u32, prob_op:f64, op_range:f64, prob_block:f64) -> f64
+	pub fn optimize_easy(&mut self, generations:u32, population:u32, prob_block:f64, prob_op:f64, op_range:f64) -> f64
 	{
 		//standard parameter choice
 		let survival = 4;
@@ -594,18 +594,18 @@ impl <T:Evaluator> Optimizer <T>
 		let prob_avg = 0.1;
 		let prob_mut = 0.95;
 		let prob_new = 0.1;
-		self.optimize(generations, population, survival, badsurv, prob_avg, prob_mut, prob_op, op_range, prob_block, prob_new)
+		self.optimize(generations, population, survival, badsurv, prob_avg, prob_mut, prob_new, prob_block, prob_op, op_range)
 	}
 	
 	/// generate initial random population of the given size.
 	/// just a shortcut to optimize with less parameters
 	pub fn gen_population(&mut self, population:u32) -> f64
 	{
-		self.optimize(1, population, population, 0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+		self.optimize(1, population, population, 0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0)
 	}
 	
 	/// generates new population and returns a vec of nets, that need to be evaluated
-	fn populate(&self, size:usize, prob_avg:f64, prob_mut:f64, prob_op:f64, op_range:f64, prob_block:f64, prob_new:f64) -> Vec<NN>
+	fn populate(&self, size:usize, prob_avg:f64, prob_mut:f64, prob_new:f64, prob_block:f64, prob_op:f64, op_range:f64) -> Vec<NN>
 	{
 		let mut rng = rand::thread_rng();
 		let len = self.nets.len();
@@ -621,7 +621,7 @@ impl <T:Evaluator> Optimizer <T>
 			
 			if rng.gen::<f64>() < prob_mut
 			{
-				newnn.mutate(prob_op, op_range, prob_block, prob_new);
+				newnn.mutate(prob_new, prob_block, prob_op, op_range);
 			}
 			
 			newpop.push(newnn);
