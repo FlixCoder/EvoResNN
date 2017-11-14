@@ -305,9 +305,9 @@ impl NN
 	/// prob_block:f64 - probability to add another residual block (2 layers) somewhere in the network, initially close to identity if not sigmoid (double activation), random prob_op afterwards
 	/// prob_new:f64 - probability to become a new freshly initialized network of same size/architecture (to change hidden size create one manually and don't breed them)
 	// ideas to add:
+	//			zero out some nodes or blocks or remove things
 	// 			change activation function or at least activation function parameters,
 	//			still use backprop for something to speed up calculation
-	//			zero out some nodes or blocks or remove things
 	pub fn mutate(&mut self, prob_op:f64, op_range:f64, prob_block:f64, prob_new:f64)
 	{
 		let mut rng = rand::thread_rng();
@@ -498,10 +498,15 @@ impl <T:Evaluator> Optimizer <T>
 	}
 	
 	/// get a reference to the population
-	//maybe add set_population?
 	pub fn get_population(&self) -> &Vec<(NN, f64)>
 	{
 		&self.nets
+	}
+	
+	/// get a mutable reference to the population (there is no set_population, use this)
+	pub fn get_population_mut(&mut self) -> &mut Vec<(NN, f64)>
+	{
+		&mut self.nets
 	}
 	
 	/// save population as json string and return it
@@ -514,6 +519,12 @@ impl <T:Evaluator> Optimizer <T>
 	pub fn load_population(&mut self, encoded:&str)
 	{
 		self.nets = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
+	}
+	
+	/// get a reference to the used evaluator
+	pub fn get_eval(&self) -> &T
+	{
+		&self.eval
 	}
 	
 	/// switch to a new evaluator to allow change of evaluation. you should probably call reevaluate afterwards
@@ -546,7 +557,7 @@ impl <T:Evaluator> Optimizer <T>
 	/// it is recommended to run a single generation with prob_mut = 1.0 and prob_new = 1.0 at the start to generate the starting population
 	/// returns the rating of the best NN afterwards
 	/// 
-	/// parameters: (probabilities are in [0,1])
+	/// parameters: (probabilities are in [0,1]) (see xor example for help regarding paramter choice)
 	/// generations - number of generations to optimize over
 	/// population - size of population to grow up to
 	/// survival - number nets to survive by best rating
@@ -571,6 +582,26 @@ impl <T:Evaluator> Optimizer <T>
 		//return best rating
 		self.sort_nets();
 		self.nets[0].1
+	}
+	
+	/// easy shortcut to optimize using standard parameters
+	/// for paramters see optimize
+	pub fn optimize_easy(&mut self, generations:u32, population:u32, prob_op:f64, op_range:f64, prob_block:f64) -> f64
+	{
+		//standard parameter choice
+		let survival = 4;
+		let badsurv = 1;
+		let prob_avg = 0.1;
+		let prob_mut = 0.95;
+		let prob_new = 0.1;
+		self.optimize(generations, population, survival, badsurv, prob_avg, prob_mut, prob_op, op_range, prob_block, prob_new)
+	}
+	
+	/// generate initial random population of the given size.
+	/// just a shortcut to optimize with less parameters
+	pub fn gen_population(&mut self, population:u32) -> f64
+	{
+		self.optimize(1, population, population, 0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
 	}
 	
 	/// generates new population and returns a vec of nets, that need to be evaluated

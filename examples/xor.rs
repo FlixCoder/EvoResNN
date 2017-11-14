@@ -35,7 +35,7 @@ fn main()
 	let eval = XorEval::new();
 	let mut opt = Optimizer::new(eval, nn);
 	//generate initial population
-	let mut mse = -opt.optimize(1, survival+badsurv, survival, badsurv, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
+	let mut mse = -opt.gen_population(survival+badsurv);
 	
     // train the network
 	let mut i = 0;
