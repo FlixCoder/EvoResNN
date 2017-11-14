@@ -112,7 +112,7 @@ impl NN
 				hid_act: hidden_activation, out_act: output_activation, layers: layers }
     }
 	
-    pub fn run(&self, inputs: &[f64]) -> Vec<f64>
+    pub fn run(&self, inputs:&[f64]) -> Vec<f64>
 	{
         if inputs.len() as u32 != self.num_inputs
 		{
@@ -128,13 +128,13 @@ impl NN
     }
 
 	/// Builds a new network from a JSON string.
-    pub fn from_json(encoded: &str) -> NN
+    pub fn from_json(encoded:&str) -> NN
 	{
         let network:NN = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
         network
     }
 	
-    fn do_run(&self, inputs: &[f64]) -> Vec<Vec<f64>>
+    fn do_run(&self, inputs:&[f64]) -> Vec<Vec<f64>>
 	{
         let mut results = Vec::new();
         results.push(inputs.to_vec());
@@ -497,6 +497,25 @@ impl <T:Evaluator> Optimizer <T>
 		Optimizer { eval: evaluator, nets: netvec }
 	}
 	
+	/// get a reference to the population
+	//maybe add set_population?
+	pub fn get_population(&self) -> &Vec<(NN, f64)>
+	{
+		&self.nets
+	}
+	
+	/// save population as json string and return it
+	pub fn save_population(&self) -> String
+	{
+		serde_json::to_string(&self.nets).ok().expect("Encoding JSON failed!")
+	}
+	
+	/// load population from json string
+	pub fn load_population(&mut self, encoded:&str)
+	{
+		self.nets = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
+	}
+	
 	/// switch to a new evaluator to allow change of evaluation. you should probably call reevaluate afterwards
 	pub fn set_eval(&mut self, evaluator:T)
 	{
@@ -606,7 +625,7 @@ impl <T:Evaluator> Optimizer <T>
 	
 	fn sort_nets(&mut self)
 	{ //best nets (high score) in front, bad and NaN nets at the end
-		self.nets.sort_by(|ref r1, ref r2| {
+		self.nets.sort_by(|ref r1, ref r2| { //reverse partial cmp and check for NaN
 				let r = (r2.1).partial_cmp((&r1.1));
 				if r.is_some() { r.unwrap() }
 				else
