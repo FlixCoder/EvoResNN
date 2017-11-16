@@ -8,9 +8,9 @@ fn xor()
 {
 	//parameters for genetic optimization
 	let population = 25;
+	let prob_block = 0.1;
 	let prob_op = 0.5;
 	let op_range = 0.5;
-	let prob_block = 0.1;
 	
 	// create examples of the xor function
 	let examples = [

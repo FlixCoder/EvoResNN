@@ -26,7 +26,7 @@ const LRELU_FACTOR:f64 = 0.33;
 
 
 /// Specifies the activation function
-#[derive(Debug, Copy, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Activation
 {
 	/// Sigmoid activation
@@ -48,7 +48,7 @@ pub enum Activation
 }
 
 /// Neural network
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct NN
 {
 	generation: u32, //generation of current network
