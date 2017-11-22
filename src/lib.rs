@@ -7,10 +7,12 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 extern crate rand;
+extern crate rayon;
 
 use std::cmp::Ordering;
 use rand::Rng;
 use rand::distributions::{Normal, IndependentSample};
+use rayon::prelude::*;
 
 //values for a (0,1) distribution (so (-1, 1) interval in standard deviation)
 //const SELU_FACTOR_A:f64 = 1.0507; //greater than 1, lambda in https://arxiv.org/pdf/1706.02515.pdf
@@ -472,22 +474,23 @@ fn modified_dotprod(node: &Vec<f64>, values: &Vec<f64>) -> f64
 
 
 
-/// trait to define evaluators in order to use the algorithm in a flexible way
+/// Trait to define evaluators in order to use the algorithm in a flexible way
 pub trait Evaluator
 {
 	fn evaluate(&self, nn:&NN) -> f64; //returns rating of NN (higher is better (you can inverse with -))
 }
 
 /// Optimizer class to optimize neural nets by evolutionary / genetic algorithms
-pub struct Optimizer <T:Evaluator>
+/// For parallel optimization the evaluator has to implement the Sync-trait! Regarding controlling the number of threads, see Rayon's documentation
+pub struct Optimizer<T:Evaluator>
 {
 	eval: T, //evaluator
 	nets: Vec<(NN, f64)>, //population of nets and ratings (sorted, high/best rating in front)
 }
 
-impl <T:Evaluator> Optimizer <T>
+impl<T:Evaluator> Optimizer<T>
 {
-	/// create a new optimizer using the given evaluator for the given neural net
+	/// Create a new optimizer using the given evaluator for the given neural net
 	pub fn new(evaluator:T, nn:NN) -> Optimizer<T>
 	{
 		let mut netvec = Vec::new();
@@ -497,66 +500,82 @@ impl <T:Evaluator> Optimizer <T>
 		Optimizer { eval: evaluator, nets: netvec }
 	}
 	
-	/// get a reference to the population
+	/// Get a reference to the population
 	pub fn get_population(&self) -> &Vec<(NN, f64)>
 	{
 		&self.nets
 	}
 	
-	/// get a mutable reference to the population (there is no set_population, use this)
+	/// Get a mutable reference to the population (there is no set_population, use this)
 	pub fn get_population_mut(&mut self) -> &mut Vec<(NN, f64)>
 	{
 		&mut self.nets
 	}
 	
-	/// save population as json string and return it
+	/// Save population as json string and return it
 	pub fn save_population(&self) -> String
 	{
 		serde_json::to_string(&self.nets).ok().expect("Encoding JSON failed!")
 	}
 	
-	/// load population from json string
+	/// Load population from json string
 	pub fn load_population(&mut self, encoded:&str)
 	{
 		self.nets = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
 	}
 	
-	/// get a reference to the used evaluator
+	/// Get a reference to the used evaluator
 	pub fn get_eval(&self) -> &T
 	{
 		&self.eval
 	}
 	
-	/// switch to a new evaluator to allow change of evaluation. you should probably call reevaluate afterwards
+	/// Switch to a new evaluator to allow change of evaluation. you should probably call reevaluate afterwards
 	pub fn set_eval(&mut self, evaluator:T)
 	{
 		self.eval = evaluator;
 	}
 	
-	/// reevaluates all neural nets based on the current (possibly changed) evaluator, returns best score
-	pub fn reevaluate(&mut self) -> f64
-	{
-		let mut vec = Vec::new();
-		while !self.nets.is_empty()
-		{
-			let (nn, _) = self.nets.pop().unwrap();
-			vec.push(nn);
-		}
-		self.evaluate(vec);
-		self.sort_nets();
-		self.nets[0].1
-	}
-	
-	/// clones the best NN an returns it
+	/// Clones the best NN an returns it
 	pub fn get_nn(&mut self) -> NN
 	{
 		self.nets[0].0.clone()
 	}
 	
-	/// optimize the NN for the given number of generations
-	/// returns the rating of the best NN score afterwards
+	/// Reevaluates all neural nets based on the current (possibly changed) evaluator, returns best score
+	pub fn reevaluate(&mut self) -> f64
+	{
+		//evaluate
+		for net in &mut self.nets
+		{
+			net.1 = self.eval.evaluate(&net.0);
+		}
+		//sort and return
+		self.sort_nets();
+		self.nets[0].1
+	}
+	
+	/// Same as reevaluate but in parallel
+	pub fn reevaluate_par(&mut self) -> f64
+		where T:Sync
+	{
+		//evaluate
+		{ //scope for borrowing
+			let eval = &self.eval;
+			self.nets.par_iter_mut().for_each(|net|
+				{
+					net.1 = eval.evaluate(&net.0);
+				});
+		}
+		//sort and return
+		self.sort_nets();
+		self.nets[0].1
+	}
+	
+	/// Optimizes the NN for the given number of generations.
+	/// Returns the rating of the best NN score afterwards.
 	/// 
-	/// parameters: (probabilities are in [0,1]) (see xor example for help regarding paramter choice)
+	/// Parameters: (probabilities are in [0,1]) (see xor example for help regarding paramter choice)
 	/// generations - number of generations to optimize over
 	/// population - size of population to grow up to
 	/// survival - number nets to survive by best rating
@@ -570,7 +589,7 @@ impl <T:Evaluator> Optimizer <T>
 	pub fn optimize(&mut self, generations:u32, population:u32, survival:u32, bad_survival:u32, prob_avg:f64, prob_mut:f64,
 					prob_new:f64, prob_block:f64, prob_op:f64, op_range:f64) -> f64
 	{
-		//optimize for generations generations
+		//optimize for "generations" generations
 		for _ in 0..generations
 		{
 			let children = self.populate(population as usize, prob_avg, prob_mut, prob_new, prob_block, prob_op, op_range);
@@ -584,8 +603,27 @@ impl <T:Evaluator> Optimizer <T>
 		self.nets[0].1
 	}
 	
-	/// easy shortcut to optimize using standard parameters
-	/// for paramters see optimize
+	/// Same as optimize, but in parallel.
+	pub fn optimize_par(&mut self, generations:u32, population:u32, survival:u32, bad_survival:u32, prob_avg:f64, prob_mut:f64,
+					prob_new:f64, prob_block:f64, prob_op:f64, op_range:f64) -> f64
+		where T:Sync
+	{
+		//optimize for "generations" generations
+		for _ in 0..generations
+		{
+			let children = self.populate(population as usize, prob_avg, prob_mut, prob_new, prob_block, prob_op, op_range);
+			self.evaluate_par(children);
+			self.sort_nets();
+			self.survive(survival, bad_survival);
+			//self.sort_nets(); //not needed, because population generation is choosing randomly!
+		}
+		//return best rating
+		self.sort_nets();
+		self.nets[0].1
+	}
+	
+	/// Easy shortcut to optimize using standard parameters.
+	/// For paramters see optimize.
 	pub fn optimize_easy(&mut self, generations:u32, population:u32, prob_block:f64, prob_op:f64, op_range:f64) -> f64
 	{
 		//standard parameter choice
@@ -597,15 +635,28 @@ impl <T:Evaluator> Optimizer <T>
 		self.optimize(generations, population, survival, badsurv, prob_avg, prob_mut, prob_new, prob_block, prob_op, op_range)
 	}
 	
-	/// generate initial random population of the given size.
-	/// just a shortcut to optimize with less parameters
+	/// Same as optimize_easy, but in parallel
+	pub fn optimize_easy_par(&mut self, generations:u32, population:u32, prob_block:f64, prob_op:f64, op_range:f64) -> f64
+		where T:Sync
+	{
+		//standard parameter choice
+		let survival = 4;
+		let badsurv = 1;
+		let prob_avg = 0.1;
+		let prob_mut = 0.95;
+		let prob_new = 0.1;
+		self.optimize_par(generations, population, survival, badsurv, prob_avg, prob_mut, prob_new, prob_block, prob_op, op_range)
+	}
+	
+	/// Generate initial random population of the given size.
+	/// Just a shortcut to optimize with less parameters.
 	pub fn gen_population(&mut self, population:u32) -> f64
 	{
 		self.optimize(1, population, population, 0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0)
 	}
 	
-	/// generates new population and returns a vec of nets, that need to be evaluated
-	fn populate(&self, size:usize, prob_avg:f64, prob_mut:f64, prob_new:f64, prob_block:f64, prob_op:f64, op_range:f64) -> Vec<NN>
+	/// Generates new population and returns a vec of nets, that need to be evaluated
+	fn populate(&self, size:usize, prob_avg:f64, prob_mut:f64, prob_new:f64, prob_block:f64, prob_op:f64, op_range:f64) -> Vec<(NN, f64)>
 	{
 		let mut rng = rand::thread_rng();
 		let len = self.nets.len();
@@ -624,21 +675,34 @@ impl <T:Evaluator> Optimizer <T>
 				newnn.mutate(prob_new, prob_block, prob_op, op_range);
 			}
 			
-			newpop.push(newnn);
+			newpop.push((newnn, 0.0));
 		}
 		
 		newpop
 	}
 	
-	fn evaluate(&mut self, nets:Vec<NN>)
+	/// Evaluates a given set of NNs and appends them into the internal storage
+	fn evaluate(&mut self, mut nets:Vec<(NN, f64)>)
 	{
-		for nn in nets
+		for net in &mut nets
 		{
-			let score = self.eval.evaluate(&nn);
-			self.nets.push((nn, score));
+			net.1 = self.eval.evaluate(&net.0);
 		}
+		self.nets.append(&mut nets);
 	}
 	
+	/// Same as evaluate but in parallel
+	fn evaluate_par(&mut self, mut nets:Vec<(NN, f64)>)
+		where T:Sync
+	{
+		nets.par_iter_mut().for_each(|net|
+			{
+				net.1 = self.eval.evaluate(&net.0);
+			});
+		self.nets.append(&mut nets);
+	}
+	
+	/// Eliminates population, so that the best "survival" nets and random "bad_survival" nets survive
 	fn survive(&mut self, survival:u32, bad_survival:u32)
 	{
 		if survival as usize >= self.nets.len() { return; } //already done
@@ -654,6 +718,7 @@ impl <T:Evaluator> Optimizer <T>
 		}
 	}
 	
+	/// Sorts the internal NNs, so that the best net is in front (index 0)
 	fn sort_nets(&mut self)
 	{ //best nets (high score) in front, bad and NaN nets at the end
 		self.nets.sort_by(|ref r1, ref r2| { //reverse partial cmp and check for NaN

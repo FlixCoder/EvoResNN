@@ -1,6 +1,6 @@
 [package]
 name = "ernn"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["FlixCoder"]
 
 [dependencies]
@@ -8,6 +8,7 @@ rand = "0.3.*"
 serde = "1.*"
 serde_derive = "1.*"
 serde_json = "1.*"
+rayon = "0.9.*"
 
 
 [profile.dev]
