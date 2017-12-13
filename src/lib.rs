@@ -47,6 +47,10 @@ pub enum Activation
 	Quadratic,
 	/// Cubic activation
 	Cubic,
+	/// Rectified linear activation
+	RELU,
+	/// Edgy soft Tanh activation (clip linear in [-1,1])
+	ESTAN
 }
 
 /// Neural network
@@ -166,6 +170,8 @@ impl NN
 							Activation::Tanh => tanh(sum),
 							Activation::Quadratic => quad(sum),
 							Activation::Cubic => cubic(sum),
+							Activation::RELU => relu(sum),
+							Activation::ESTAN => estan(sum),
 						};
 				//push result
 				layer_results.push(sum);
@@ -258,15 +264,15 @@ impl NN
 		
 		//set parameters
 		{ //put in scope, because of mutable borrow before ownership return
-			let mut layers1 = newnn.get_layers_mut();
+			let layers1 = newnn.get_layers_mut();
 			let layers1len = layers1.len();
 			let layers2 = other.get_layers();
 			for layer_index in 0..layers1len
 			{
-				let mut layer = &mut layers1[layer_index];
+				let layer = &mut layers1[layer_index];
 				for node_index in 0..layer.len()
 				{
-					let mut node = &mut layer[node_index];
+					let node = &mut layer[node_index];
 					for weight_index in 0..node.len()
 					{
 						let mut layer2val = 0.0;
@@ -362,11 +368,11 @@ impl NN
 		let mut prev_layer_size = self.num_inputs as usize;
 		for layer_index in 0..self.layers.len()
 		{
-			let mut layer = &mut self.layers[layer_index];
+			let layer = &mut self.layers[layer_index];
 			let normal = Normal::new(0.0, (init_std_scale / prev_layer_size as f64).sqrt());
 			for node_index in 0..layer.len()
 			{
-				let mut node = &mut layer[node_index];
+				let node = &mut layer[node_index];
 				for weight_index in 0..node.len()
 				{
 					node[weight_index] = if weight_index == 0 { 0.0 } else { normal.ind_sample(&mut rng) };
@@ -382,10 +388,10 @@ impl NN
 		let mut rng = rand::thread_rng();
 		for layer_index in 0..self.layers.len()
 		{
-			let mut layer = &mut self.layers[layer_index];
+			let layer = &mut self.layers[layer_index];
 			for node_index in 0..layer.len()
 			{
-				let mut node = &mut layer[node_index];
+				let node = &mut layer[node_index];
 				for weight_index in 0..node.len()
 				{
 					//possibly modify weight
@@ -459,6 +465,16 @@ fn quad(x:f64) -> f64
 fn cubic(x:f64) -> f64
 {
 	x * x * x
+}
+
+fn relu(x:f64) -> f64
+{
+	x.max(0.0)
+}
+
+fn estan(x:f64) -> f64
+{
+	x.min(1.0).max(-1.0)
 }
 
 fn modified_dotprod(node: &Vec<f64>, values: &Vec<f64>) -> f64

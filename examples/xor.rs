@@ -31,7 +31,7 @@ fn main()
 	let op_range = 0.25; //the bigger the network, the lower this (lower this before prob_op)
 	
     // create a new neural network, evaluator and optimizer
-	let nn = NN::new(2, 3, 1, Activation::LRELU, Activation::Linear);
+	let nn = NN::new(2, 3, 1, Activation::RELU, Activation::Linear);
 	let eval = XorEval::new();
 	let mut opt = Optimizer::new(eval, nn);
 	//generate initial population
