@@ -71,29 +71,29 @@ impl NN
 {
 	/// Creates a new neural net with the given parameters. Initially there is one hidden layer
 	/// Be careful with Sigmoid as hidden layer activation function, as it could possibly slow down block additions
-    pub fn new(inputs:u32, hidden_size:u32, outputs:u32, hidden_activation:Activation, output_activation:Activation) -> NN
+	pub fn new(inputs:u32, hidden_size:u32, outputs:u32, hidden_activation:Activation, output_activation:Activation) -> NN
 	{
-        let mut rng = rand::thread_rng();
+		let mut rng = rand::thread_rng();
 
-        if inputs < 1 || hidden_size < 1 || outputs < 1
+		if inputs < 1 || hidden_size < 1 || outputs < 1
 		{
-            panic!("inappropriate parameter bounds");
-        }
+			panic!("inappropriate parameter bounds");
+		}
 
 		// setup the layers
-        let mut layers = Vec::new();
-        let mut prev_layer_size = inputs;
-        for i in 0..2
+		let mut layers = Vec::new();
+		let mut prev_layer_size = inputs;
+		for i in 0..2
 		{ //one hidden layer and one output layer
-            let mut layer: Vec<Vec<f64>> = Vec::new();
+			let mut layer: Vec<Vec<f64>> = Vec::new();
 			let layer_size = if i == 1 { outputs } else { hidden_size };
 			let mut init_std_scale = 2.0; //He init
 			if hidden_activation == Activation::SELU { init_std_scale = 1.0; } //MSRA / Xavier init
 			let normal = Normal::new(0.0, (init_std_scale / prev_layer_size as f64).sqrt());
-            for _ in 0..layer_size
+			for _ in 0..layer_size
 			{
-                let mut node: Vec<f64> = Vec::with_capacity(1 + prev_layer_size as usize);
-                for i in 0..prev_layer_size+1
+				let mut node: Vec<f64> = Vec::with_capacity(1 + prev_layer_size as usize);
+				for i in 0..prev_layer_size+1
 				{
 					if i == 0 //threshold aka bias
 					{
@@ -104,143 +104,169 @@ impl NN
 						let random_weight: f64 = normal.ind_sample(&mut rng);
 						node.push(random_weight);
 					}
-                }
-                layer.push(node)
-            }
-            layer.shrink_to_fit();
-            layers.push(layer);
-            prev_layer_size = layer_size;
-        }
-        layers.shrink_to_fit();
+				}
+				layer.push(node)
+			}
+			layer.shrink_to_fit();
+			layers.push(layer);
+			prev_layer_size = layer_size;
+		}
+		layers.shrink_to_fit();
 		
 		//set activation functions
-        NN { generation: 0, blocks: 0, num_inputs: inputs, hidden_size: hidden_size, num_outputs: outputs,
+		NN { generation: 0, blocks: 0, num_inputs: inputs, hidden_size: hidden_size, num_outputs: outputs,
 				hid_act: hidden_activation, out_act: output_activation, layers: layers }
-    }
+	}
 	
-    pub fn run(&self, inputs:&[f64]) -> Vec<f64>
+	///Runs a feed-forward run through the network and returns the results (of the output layer)
+	pub fn run(&self, inputs:&[f64]) -> Vec<f64>
 	{
-        if inputs.len() as u32 != self.num_inputs
+		if inputs.len() as u32 != self.num_inputs
 		{
-            panic!("input has a different length than the network's input layer");
-        }
-        self.do_run(inputs).pop().unwrap()
-    }
+			panic!("Input has a different length than the network's input layer!");
+		}
+		
+		self.do_run(inputs, 0.0).pop().unwrap()
+	}
 	
-	/// Encodes the network as a JSON string.
-    pub fn to_json(&self) -> String
+	///Runs a feed-forward run through the network using random drop-out and returns the results (of the output layer)
+	///d = probability to drop the node respectively (must be in 0-1)
+	pub fn run_dropout(&self, inputs:&[f64], d:f64) -> Vec<f64>
 	{
-        serde_json::to_string(self).ok().expect("Encoding JSON failed!")
-    }
+		if inputs.len() as u32 != self.num_inputs
+		{
+			panic!("Input has a different length than the network's input layer!");
+		}
+		if d < 0.0 || d > 1.0
+		{
+			panic!("Probability to drop nodes not in correct range! [0.0, 1.0]");
+		}
+		
+		self.do_run(inputs, d).pop().unwrap()
+	}
+
+	/// Encodes the network as a JSON string.
+	pub fn to_json(&self) -> String
+	{
+		serde_json::to_string(self).ok().expect("Encoding JSON failed!")
+	}
 
 	/// Builds a new network from a JSON string.
-    pub fn from_json(encoded:&str) -> NN
+	pub fn from_json(encoded:&str) -> NN
 	{
-        let network:NN = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
-        network
-    }
-	
-    fn do_run(&self, inputs:&[f64]) -> Vec<Vec<f64>>
+		let network:NN = serde_json::from_str(encoded).ok().expect("Decoding JSON failed!");
+		network
+	}
+
+	fn do_run(&self, inputs:&[f64], d:f64) -> Vec<Vec<f64>>
 	{
-        let mut results = Vec::new();
-        results.push(inputs.to_vec());
+		let mut rng = rand::thread_rng();
+		let mut results = Vec::new();
+		results.push(inputs.to_vec());
 		let num_layers = self.layers.len();
-        for (layer_index, layer) in self.layers.iter().enumerate()
+		for (layer_index, layer) in self.layers.iter().enumerate()
 		{
-            let mut layer_results = Vec::new();
-            for (i, node) in layer.iter().enumerate()
+			let mut layer_results = Vec::new();
+			for (i, node) in layer.iter().enumerate()
 			{
-				let mut sum = modified_dotprod(&node, &results[layer_index]); //sum of forward pass to this node
-				//residual network shortcut
-				if layer_index >= 1 && layer_index < num_layers - 1 && layer_index % 2 == 0
-				{
-					sum += results[layer_index - 1][i];
+				if d > 0.0 && rng.gen::<f64>() < d
+				{ //drop node => result 0 so it has no effect
+					layer_results.push(0.0);
 				}
-				//standard forward pass activation
-				let act;
-				if layer_index == self.layers.len()-1 //output layer
-				{ act = self.out_act; }
-				else { act = self.hid_act; }
-				sum = match act {
-							Activation::Sigmoid => sigmoid(sum),
-							Activation::SELU => selu(sum),
-							Activation::PELU => pelu(sum),
-							Activation::LRELU => lrelu(sum),
-							Activation::Linear => linear(sum),
-							Activation::Tanh => tanh(sum),
-							Activation::Quadratic => quad(sum),
-							Activation::Cubic => cubic(sum),
-							Activation::RELU => relu(sum),
-							Activation::ESTAN => estan(sum),
-						};
-				//push result
-				layer_results.push(sum);
-            }
-            results.push(layer_results);
-        }
-        results
-    }
-	
+				else
+				{ //keep node => calculate results
+					let mut sum = modified_dotprod(&node, &results[layer_index]); //sum of forward pass to this node
+					//residual network shortcut
+					if layer_index >= 1 && layer_index < num_layers - 1 && layer_index % 2 == 0
+					{
+						sum += results[layer_index - 1][i];
+					}
+					//standard forward pass activation
+					let act;
+					if layer_index == self.layers.len()-1 //output layer
+					{ act = self.out_act; }
+					else { act = self.hid_act; }
+					sum = match act {
+								Activation::Sigmoid => sigmoid(sum),
+								Activation::SELU => selu(sum),
+								Activation::PELU => pelu(sum),
+								Activation::LRELU => lrelu(sum),
+								Activation::Linear => linear(sum),
+								Activation::Tanh => tanh(sum),
+								Activation::Quadratic => quad(sum),
+								Activation::Cubic => cubic(sum),
+								Activation::RELU => relu(sum),
+								Activation::ESTAN => estan(sum),
+							};
+					//push result
+					layer_results.push(sum);
+				}
+			}
+			results.push(layer_results);
+		}
+		results
+	}
+
 	fn get_layers_mut(&mut self) -> &mut Vec<Vec<Vec<f64>>>
 	{
 		&mut self.layers
 	}
-	
+
 	fn get_layers(&self) -> &Vec<Vec<Vec<f64>>>
 	{
 		&self.layers
 	}
-	
+
 	pub fn get_inputs(&self) -> u32
 	{
 		self.num_inputs
 	}
-	
+
 	pub fn get_hidden(&self) -> u32
 	{
 		self.hidden_size
 	}
-	
+
 	pub fn get_outputs(&self) -> u32
 	{
 		self.num_outputs
 	}
-	
+
 	pub fn get_hid_act(&self) -> Activation
 	{
 		self.hid_act
 	}
-	
+
 	pub fn get_out_act(&self) -> Activation
 	{
 		self.out_act
 	}
-	
+
 	fn set_hid_act(&mut self, act:Activation)
 	{
 		self.hid_act = act;
 	}
-	
+
 	fn set_out_act(&mut self, act:Activation)
 	{
 		self.out_act = act;
 	}
-	
+
 	pub fn get_gen(&self) -> u32
 	{
 		self.generation
 	}
-	
+
 	fn set_gen(&mut self, gen:u32)
 	{
 		self.generation = gen;
 	}
-	
+
 	pub fn get_blocks(&self) -> u32
 	{
 		self.blocks
 	}
-	
+
 	///  breed a child from the 2 networks, either by random select or by averaging weights
 	/// panics if the neural net's hidden_size are not the same
 	pub fn breed(&self, other:&NN, prob_avg:f64) -> NN
@@ -305,8 +331,8 @@ impl NN
 		//return
 		newnn
 	}
-	
-    /// mutate the current network
+
+	/// mutate the current network
 	/// params: (all probabilities in [0,1])
 	/// prob_new:f64 - probability to become a new freshly initialized network of same size/architecture (to change hidden size create one manually and don't breed them)
 	/// prob_block:f64 - probability to add another residual block (2 layers) somewhere in the network, initially close to identity if not sigmoid (double activation), random prob_op afterwards
@@ -335,7 +361,7 @@ impl NN
 			self.mutate_op(prob_op, op_range);
 		}
 	}
-	
+
 	/// adds an additional residual block somewhere
 	fn mutate_block(&mut self)
 	{
@@ -359,7 +385,7 @@ impl NN
 		
 		self.blocks += 1;
 	}
-	
+
 	fn mutate_new(&mut self)
 	{
 		let mut rng = rand::thread_rng();
@@ -381,7 +407,7 @@ impl NN
 			prev_layer_size = layer.len();
 		}
 	}
-	
+
 	/// mutate using addition/substraction of a random value (random per node)
 	fn mutate_op(&mut self, prob_op:f64, op_range:f64)
 	{
@@ -480,7 +506,7 @@ fn estan(x:f64) -> f64
 fn modified_dotprod(node: &Vec<f64>, values: &Vec<f64>) -> f64
 {
     let mut it = node.iter();
-    let mut total = *it.next().unwrap(); // start with the threshold weight
+    let mut total = *it.next().unwrap(); //start with the threshold weight
     for (weight, value) in it.zip(values.iter())
 	{
         total += weight * value;
@@ -738,11 +764,11 @@ impl<T:Evaluator> Optimizer<T>
 	fn sort_nets(&mut self)
 	{ //best nets (high score) in front, bad and NaN nets at the end
 		self.nets.sort_by(|ref r1, ref r2| { //reverse partial cmp and check for NaN
-				let r = (r2.1).partial_cmp((&r1.1));
+				let r = (r2.1).partial_cmp(&r1.1);
 				if r.is_some() { r.unwrap() }
 				else
 				{
-					if r1.1.is_nan() { if r2.1.is_nan() {Ordering::Equal} else {Ordering::Greater} } else { Ordering::Less }
+					if r1.1.is_nan() { if r2.1.is_nan() { Ordering::Equal } else { Ordering::Greater } } else { Ordering::Less }
 				}
 			});
 	}

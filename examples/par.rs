@@ -12,7 +12,7 @@ fn main()
 	let op_range = 0.25; //the bigger the network, the lower this (lower this before prob_op)
 	
     // create a new neural network, evaluator and optimizer
-	let nn = NN::new(2, 500, 1, Activation::LRELU, Activation::Linear);
+	let nn = NN::new(2, 100, 1, Activation::LRELU, Activation::Linear);
 	let eval = XorEval::new();
 	let mut opt = Optimizer::new(eval, nn);
 	//generate initial population
@@ -63,8 +63,15 @@ impl Evaluator for XorEval
 		let mut sum = 0.0;
 		for &(ref inputs, ref outputs) in self.examples.iter()
 		{
-			let results = nn.run(inputs);
-			let diff = results[0] - outputs[0];
+			let mut result = 0.0;
+			const N:u16 = 100;
+			for _ in 1..N
+			{ // just as simple example of dropout usage
+				let results = nn.run_dropout(inputs, 0.5);
+				result += results[0] as f64;
+			}
+			result /= N as f64;
+			let diff = result - outputs[0];
 			sum += diff * diff;
 		}
 		sum /= self.examples.len() as f64;
