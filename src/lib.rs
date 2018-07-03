@@ -105,7 +105,7 @@ impl NN
 						node.push(random_weight);
 					}
 				}
-				layer.push(node)
+				layer.push(node);
 			}
 			layer.shrink_to_fit();
 			layers.push(layer);
@@ -126,23 +126,23 @@ impl NN
 			panic!("Input has a different length than the network's input layer!");
 		}
 		
-		self.do_run(inputs, 0.0).pop().unwrap()
+		self.do_run(inputs, 1.0).pop().unwrap()
 	}
 	
 	///Runs a feed-forward run through the network using random drop-out and returns the results (of the output layer)
-	///d = probability to drop the node respectively (must be in 0-1)
-	pub fn run_dropout(&self, inputs:&[f64], d:f64) -> Vec<f64>
+	///k = probability to keep the node respectively (must be in (0.0, 1.0])
+	pub fn run_dropout(&self, inputs:&[f64], k:f64) -> Vec<f64>
 	{
 		if inputs.len() as u32 != self.num_inputs
 		{
 			panic!("Input has a different length than the network's input layer!");
 		}
-		if d < 0.0 || d > 1.0
+		if k <= 0.0 || k > 1.0
 		{
-			panic!("Probability to drop nodes not in correct range! [0.0, 1.0]");
+			panic!("Probability to keep nodes is not in the correct range! (0.0, 1.0]");
 		}
 		
-		self.do_run(inputs, d).pop().unwrap()
+		self.do_run(inputs, k).pop().unwrap()
 	}
 
 	/// Encodes the network as a JSON string.
@@ -158,7 +158,7 @@ impl NN
 		network
 	}
 
-	fn do_run(&self, inputs:&[f64], d:f64) -> Vec<Vec<f64>>
+	fn do_run(&self, inputs:&[f64], k:f64) -> Vec<Vec<f64>>
 	{
 		let mut rng = rand::thread_rng();
 		let mut results = Vec::new();
@@ -169,11 +169,7 @@ impl NN
 			let mut layer_results = Vec::new();
 			for (i, node) in layer.iter().enumerate()
 			{
-				if d > 0.0 && rng.gen::<f64>() < d
-				{ //drop node => result 0 so it has no effect
-					layer_results.push(0.0);
-				}
-				else
+				if k == 1.0 || rng.gen::<f64>() < k
 				{ //keep node => calculate results
 					let mut sum = modified_dotprod(&node, &results[layer_index]); //sum of forward pass to this node
 					//residual network shortcut
@@ -198,8 +194,14 @@ impl NN
 								Activation::RELU => relu(sum),
 								Activation::ESTAN => estan(sum),
 							};
+					//when using dropout multiply to a factor to keep the variance/norm
+					sum /= k; //for d = 0.0 nothing happens
 					//push result
 					layer_results.push(sum);
+				}
+				else
+				{ //drop node => result 0 so it has no effect
+					layer_results.push(0.0);
 				}
 			}
 			results.push(layer_results);
